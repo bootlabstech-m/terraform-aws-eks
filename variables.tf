@@ -1,12 +1,10 @@
 variable "region" {
-  default = "us-east-2"
   type    = string
-
 }
 
 variable "eks_role" {
   type        = string
-  description = "EKS role"
+  description = "Enter unique name for EKS role"
 }
 
 variable "policy_arn" {
@@ -48,14 +46,6 @@ variable "enable_log_types" {
   type        = list(string)
   description = "Optional) List of the desired control plane logging to enable."
 }
-
-# variable "tags" {
-#   type = map(any)
-#   default = {
-
-#   }
-# }
-
 variable "k8s_version" {
   type        = string
   description = "Desired Kubernetes master version. If you do not specify a value, the latest available version at resource creation is used and no upgrades will occur except those automatically triggered by EKS. The value must be configured and increased to upgrade the version when desired. Downgrades are not supported by EKS."
@@ -63,10 +53,9 @@ variable "k8s_version" {
 
 variable "encryption_resources" {
   type    = list(string)
-
 }
 
-variable "arn" {
+variable "kms_key_arn" {
   type        = map(string)
   description = "(Required) ARN of the Key Management Service (KMS) customer master key (CMK). The CMK must be symmetric, created in the same region as the cluster, and if the CMK was created in a different account, the user must have access to the CMK."
 }
