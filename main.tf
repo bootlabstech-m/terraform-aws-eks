@@ -46,42 +46,51 @@ resource "aws_eks_cluster" "cluster" {
 
   enabled_cluster_log_types = var.enable_log_types
 
-  dynamic "encryption_config" {
-    for_each = length(keys(var.kms_key_arn)) == 0 ? [] : [true]
-    content {
-      provider {
-        key_arn = data.aws_kms_key.key_arn.id
-      }
-      resources = var.encryption_resources
-    }
-  }
+  # dynamic "encryption_config" {
+  #   content {
+  #     provider {
+  #       key_arn = data.aws_kms_key.key_arn.id
+  #     }
+  #     resources = var.encryption_resources
+  #   }
+  # }
 }
 
-resource "aws_eks_node_group" "example" {
-  cluster_name    = aws_eks_cluster.example.name
-  node_group_name = "example"
-  node_role_arn   = aws_iam_role.example.arn
-  subnet_ids      = aws_subnet.example[*].id
+# resource "aws_eks_node_group" "example" {
+#   cluster_name    = aws_eks_cluster.cluster.name
+#   node_group_name = "example"
+#   node_role_arn   = aws_iam_role.example.arn
+#   subnet_ids      = var.subnet_ids
 
-  scaling_config {
-    desired_size = 1
-    max_size     = 2
-    min_size     = 1
-  }
+#   scaling_config {
+#     desired_size = 1
+#     max_size     = 2
+#     min_size     = 1
+#   }
 
-  update_config {
-    max_unavailable = 1
-  }
+#   update_config {
+#     max_unavailable = 1
+#   }
 
-  # Ensure that IAM Role permissions are created before and deleted after EKS Node Group handling.
-  # Otherwise, EKS will not be able to properly delete EC2 Instances and Elastic Network Interfaces.
-  depends_on = [
-    aws_iam_role_policy_attachment.example-AmazonEKSWorkerNodePolicy,
-    aws_iam_role_policy_attachment.example-AmazonEKS_CNI_Policy,
-    aws_iam_role_policy_attachment.example-AmazonEC2ContainerRegistryReadOnly,
-  ]
-    lifecycle {
-    ignore_changes = [scaling_config[0].desired_size]
+#   # Ensure that IAM Role permissions are created before and deleted after EKS Node Group handling.
+#   # Otherwise, EKS will not be able to properly delete EC2 Instances and Elastic Network Interfaces.
+#   depends_on = [
+#     aws_iam_role_policy_attachment.example-AmazonEKSWorkerNodePolicy,
+#     aws_iam_role_policy_attachment.example-AmazonEKS_CNI_Policy,
+#     aws_iam_role_policy_attachment.example-AmazonEC2ContainerRegistryReadOnly,
+#   ]
+#     lifecycle {
+#     ignore_changes = [scaling_config[0].desired_size]
+#   }
+# }
+resource "aws_eks_fargate_profile" "example" {
+  cluster_name           = aws_eks_cluster.cluster.name
+  fargate_profile_name   = "example"
+  pod_execution_role_arn = aws_iam_role.example.arn
+  subnet_ids             = var.subnet_ids
+
+  selector {
+    namespace = "example"
   }
 }
 
@@ -97,7 +106,7 @@ resource "aws_iam_role" "example" {
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = "ec2.amazonaws.com"
+        Service = "eks-fargate-pods.amazonaws.com"
       }
     }]
     Version = "2012-10-17"
