@@ -1,3 +1,7 @@
+###########################
+# IAM ROLE FOR EKS CLUSTER
+###########################
+
 resource "aws_iam_role" "iam_role" {
   name               = var.eks_role
   path               = "/"
@@ -17,86 +21,87 @@ resource "aws_iam_role" "iam_role" {
 POLICY
 }
 
-# Attaching the EKS-Cluster policies to the terraformekscluster role.
+# Attaching the EKS-Cluster policies to the terraform-eks-cluster role.
 
-resource "aws_iam_role_policy_attachment" "policy_attachment" {
-  count      = length(var.policy_arn)
-  policy_arn = var.policy_arn[count.index]
+resource "aws_iam_role_policy_attachment" "cluster_policies" {
+  for_each = toset([
+    "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
+    "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
+  ])
+  policy_arn = each.value
   role       = aws_iam_role.iam_role.name
 }
+
+###########################
+# SECURITY GROUP
+###########################
+
+resource "aws_security_group" "eks_sg" {
+  name        = "${var.cluster_name}-eks-sg"
+  description = "Security group for EKS control plane"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description = "Allow communication from worker nodes"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.public_access_cidrs
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.cluster_name}-eks-sg"
+  }
+}
+
+###########################
+# EKS CLUSTER
+###########################
 
 resource "aws_eks_cluster" "cluster" {
   name     = var.cluster_name
   role_arn = aws_iam_role.iam_role.arn
+  version  = var.k8s_version
 
   vpc_config {
     subnet_ids              = var.subnet_ids
-    security_group_ids      = var.security_group_ids
+    security_group_ids      = [aws_security_group.eks_sg.id]
     public_access_cidrs     = var.public_access_cidrs
     endpoint_public_access  = var.endpoint_public_access
     endpoint_private_access = var.endpoint_private_access
   }
-  depends_on = [
-    aws_iam_role_policy_attachment.policy_attachment
-  ]
-  kubernetes_network_config{
+
+  kubernetes_network_config {
     service_ipv4_cidr = var.service_ipv4_cidr
-    ip_family         = var.ip_family
+    ip_family         = "ipv4"
   }
 
   enabled_cluster_log_types = var.enable_log_types
 
-  # dynamic "encryption_config" {
-  #   content {
-  #     provider {
-  #       key_arn = data.aws_kms_key.key_arn.id
-  #     }
-  #     resources = var.encryption_resources
-  #   }
-  # }
-}
-
-# resource "aws_eks_node_group" "example" {
-#   cluster_name    = aws_eks_cluster.cluster.name
-#   node_group_name = "example"
-#   node_role_arn   = aws_iam_role.example.arn
-#   subnet_ids      = var.subnet_ids
-
-#   scaling_config {
-#     desired_size = 1
-#     max_size     = 2
-#     min_size     = 1
-#   }
-
-#   update_config {
-#     max_unavailable = 1
-#   }
-
-#   # Ensure that IAM Role permissions are created before and deleted after EKS Node Group handling.
-#   # Otherwise, EKS will not be able to properly delete EC2 Instances and Elastic Network Interfaces.
-#   depends_on = [
-#     aws_iam_role_policy_attachment.example-AmazonEKSWorkerNodePolicy,
-#     aws_iam_role_policy_attachment.example-AmazonEKS_CNI_Policy,
-#     aws_iam_role_policy_attachment.example-AmazonEC2ContainerRegistryReadOnly,
-#   ]
-#     lifecycle {
-#     ignore_changes = [scaling_config[0].desired_size]
-#   }
-# }
-resource "aws_eks_fargate_profile" "example" {
-  cluster_name           = aws_eks_cluster.cluster.name
-  fargate_profile_name   = "example"
-  pod_execution_role_arn = aws_iam_role.example.arn
-  subnet_ids             = var.subnet_ids
-
-  selector {
-    namespace = "example"
+  dynamic "encryption_config" {
+    for_each = length(keys(var.kms_key_arn)) == 0 ? [] : [true]
+    content {
+      provider {
+        key_arn = var.kms_key_arn["key"]
+      }
+      resources = var.encryption_resources
+    }
   }
+  depends_on = [
+    aws_iam_role_policy_attachment.cluster_policies
+  ]
 }
 
-data "aws_kms_key" "key_arn" {
-  key_id = var.kms_key_arn
-}
+###########################
+# IAM ROLE FOR NODE GROUP
+###########################
 
 resource "aws_iam_role" "example" {
   name = "eks-node-group-example"
@@ -106,24 +111,52 @@ resource "aws_iam_role" "example" {
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = "eks-fargate-pods.amazonaws.com"
+        Service = "ec2.amazonaws.com"
       }
     }]
     Version = "2012-10-17"
   })
 }
 
-resource "aws_iam_role_policy_attachment" "example-AmazonEKSWorkerNodePolicy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+resource "aws_iam_role_policy_attachment" "node_role_policy_attachments" {
+  for_each = toset([
+    "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+    "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  ])
+  policy_arn = each.key
   role       = aws_iam_role.example.name
 }
 
-resource "aws_iam_role_policy_attachment" "example-AmazonEKS_CNI_Policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       = aws_iam_role.example.name
-}
 
-resource "aws_iam_role_policy_attachment" "example-AmazonEC2ContainerRegistryReadOnly" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       = aws_iam_role.example.name
+###########################
+# EKS NODE GROUP
+###########################
+
+resource "aws_eks_node_group" "example" {
+  cluster_name    = aws_eks_cluster.cluster.name
+  node_group_name = "eks-nodegroup-example"
+  node_role_arn   = aws_iam_role.example.arn
+  subnet_ids      = var.subnet_ids
+
+  scaling_config {
+    desired_size = var.node_group_desired_size
+    max_size     = var.node_group_max_size
+    min_size     = var.node_group_min_size
+  }
+
+  update_config {
+    max_unavailable = 1
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.node_role_policy_attachments
+  ]
+  lifecycle {
+    ignore_changes = [
+      scaling_config[0].desired_size,
+
+    ]
+
+  }
 }
