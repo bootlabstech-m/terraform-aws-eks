@@ -86,10 +86,10 @@ resource "aws_eks_cluster" "cluster" {
   enabled_cluster_log_types = var.enable_log_types
 
   dynamic "encryption_config" {
-    for_each = length(keys(var.kms_key_arn)) == 0 ? [] : [true]
+    for_each = var.kms_key_arn != "" ? [true] : []
     content {
       provider {
-        key_arn = var.kms_key_arn["key"]
+        key_arn = var.kms_key_arn
       }
       resources = var.encryption_resources
     }
