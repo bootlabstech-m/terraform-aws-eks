@@ -1,5 +1,6 @@
 variable "region" {
   type    = string
+  default = "the region where you want to deploy the eks"
 }
 
 variable "role_arn" {
@@ -19,7 +20,6 @@ variable "cluster_name" {
 
 variable "vpc_id" {
   type = string
-
 }
 variable "subnet_ids" {
   type        = list(string)
@@ -48,7 +48,7 @@ variable "node_group_min_size" {
 variable "public_access_cidrs" {
   type        = list(string)
   description = "(Optional) List of CIDR blocks. Indicates which CIDR blocks can access the Amazon EKS public API server endpoint when enabled. EKS defaults this to a list with 0.0.0.0/0. Terraform will only perform drift detection of its value when present in a configuration."
-  default     = ["0.0.0.0/0"]
+  default     = ["0.0.0.0/0"] # 0.0.0.0/0 or 10.0.0.0/16 vpc cidr
 }
 
 variable "endpoint_public_access" {
@@ -66,20 +66,22 @@ variable "endpoint_private_access" {
 variable "service_ipv4_cidr" {
   type = string
   description = "provide the cidr range"
+  default = ""
 }
 
 variable "enable_log_types" {
   type        = list(string)
-  description = "Optional) List of the desired control plane logging to enable."
+  description = "List of the desired control plane logging to enable."
 }
 
 variable "k8s_version" {
   type        = string
- 
+  description = "The k8s version"
 }
 
 variable "encryption_resources" {
   type = list(string)
+  description = "list of resources you want to encrypt"
 }
 
 variable "kms_key_arn" {
@@ -87,3 +89,4 @@ variable "kms_key_arn" {
   default = ""
   description = "(Required) ARN of the Key Management Service (KMS) customer master key (CMK). The CMK must be symmetric, created in the same region as the cluster, and if the CMK was created in a different account, the user must have access to the CMK."
 }
+
