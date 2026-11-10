@@ -90,3 +90,8 @@ variable "kms_key_arn" {
   description = "(Required) ARN of the Key Management Service (KMS) customer master key (CMK). The CMK must be symmetric, created in the same region as the cluster, and if the CMK was created in a different account, the user must have access to the CMK."
 }
 
+variable "instance_types" {
+  description = "List of EC2 instance types for the EKS node group"
+  type        = list(string)
+  default     = ["t3a.medium"]
+}

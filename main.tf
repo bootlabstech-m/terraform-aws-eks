@@ -138,6 +138,7 @@ resource "aws_eks_node_group" "example" {
   node_group_name = "eks-nodegroup-example"
   node_role_arn   = aws_iam_role.example.arn
   subnet_ids      = var.subnet_ids
+  instance_types  = var.instance_types
 
   scaling_config {
     desired_size = var.node_group_desired_size
