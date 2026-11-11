@@ -95,3 +95,8 @@ variable "instance_types" {
   type        = list(string)
   default     = ["t3a.medium"]
 }
+variable "authentication_mode" {
+  type = string
+  description = "auth mode to eks"
+  default = "API"
+}
